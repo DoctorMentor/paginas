@@ -96,6 +96,7 @@
   .cardwrap.selected{outline:4px solid #35e08d; outline-offset:3px; border-radius:12px; transform:rotateY(180deg) scale(1.06)}
   .cardwrap.disabled{opacity:.45; cursor:not-allowed}
   .cardwrap .dupe{position:absolute; z-index:5; top:6px; left:6px; background:#c0392b; color:#fff; font-size:10px; font-weight:900; padding:2px 6px; border-radius:6px; transform:rotateY(180deg)}
+  .cardwrap:not(.flipped) .dupe{display:none}
   #pack-actions{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:8px 0 18px}
   #pack-hint{font-size:14px; opacity:.85; margin-bottom:8px; text-align:center; min-height:20px}
 
@@ -144,7 +145,8 @@
   #controls-help{font-size:13px; opacity:.75; margin-top:8px; text-align:center}
   /* touch */
   #touch-ui{display:none; position:absolute; inset:0; pointer-events:none}
-  #joy-zone{position:absolute; left:0; top:0; width:45%; height:100%; pointer-events:auto}
+  #joy-zone{position:absolute; left:0; top:0; width:45%; height:100%; pointer-events:auto; touch-action:none}
+  .tbtn{touch-action:none}
   #joy-base{position:absolute; width:96px; height:96px; border-radius:50%; border:2px solid rgba(255,255,255,.5);
     background:rgba(255,255,255,.12); display:none; transform:translate(-50%,-50%)}
   #joy-stick{position:absolute; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.75); left:50%; top:50%; transform:translate(-50%,-50%)}
@@ -288,7 +290,7 @@
       <button class="btn sec small" id="btn-quit">🚪 Sair da partida</button>
     </div>
   </div>
-  <div id="controls-help">🎮 Mover: setas/WASD • <b>Z</b> cruzamento • <b>X</b> chute • <b>C</b> passe • <b>V</b> passe enfiado • <b>B</b> trocar jogador • <b>N</b> correr (segure) • <b>M</b> pausa<br>📱 No celular: joystick à esquerda (empurre até a borda para correr) + botões de ação à direita</div>
+  <div id="controls-help">🎮 Mover: setas/WASD • <b>Z</b> cruzamento • <b>X</b> chute (segure p/ força!) • <b>C</b> passe / dividida • <b>V</b> enfiado / carrinho • <b>B</b> trocar • <b>N</b> correr • <b>M</b> pausa<br>📱 No celular: joystick à esquerda (borda = correr) + botões à direita (segure CHUTE para dar força)</div>
 </div>
 
 <!-- ============ FIM ============ -->
@@ -311,7 +313,7 @@
 /* ---------- Banco de figurinhas ---------- */
 const COUNTRIES = {
   BRA:{n:'Brasil',f:'🇧🇷',c:'#ffd83d'},      ARG:{n:'Argentina',f:'🇦🇷',c:'#8fd3f4'},
-  FRA:{n:'França',f:'🇫🇷',c:'#2b4bd6'},      ING:{n:'Inglaterra',f:'🏴',c:'#f0f0f0'},
+  FRA:{n:'França',f:'🇫🇷',c:'#2b4bd6'},      ING:{n:'Inglaterra',f:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',c:'#f0f0f0'},
   POR:{n:'Portugal',f:'🇵🇹',c:'#c0392b'},    ESP:{n:'Espanha',f:'🇪🇸',c:'#e03131'},
   ALE:{n:'Alemanha',f:'🇩🇪',c:'#f5f5f5'},    HOL:{n:'Holanda',f:'🇳🇱',c:'#ff7b1c'},
   BEL:{n:'Bélgica',f:'🇧🇪',c:'#d63031'},     CRO:{n:'Croácia',f:'🇭🇷',c:'#e5533d'},
@@ -679,7 +681,9 @@ function buildUserTeam(){
         speed:speedFromOvr(p.ovr) * (1+(eff-80)*0.004),
         skin:SKINS[(list.length*3+p.ovr)%SKINS.length],
         hair:HAIRS[(list.length*5+p.ovr)%HAIRS.length],
+        hstyle:(list.length*7+p.ovr)%4, beard:(list.length+p.ovr)%3===0,
         num:list.length+1, stride:0, face:1,
+        tackleT:0, slideT:0, recoverT:0,
       });
     });
   }
@@ -699,7 +703,9 @@ function buildOppTeam(ovr, country){
         speed:speedFromOvr(ovr),
         skin:SKINS[(list.length*7+2)%SKINS.length],
         hair:HAIRS[(list.length*3+1)%HAIRS.length],
+        hstyle:(list.length*5+3)%4, beard:list.length%4===0,
         num:list.length+1, stride:0, face:-1,
+        tackleT:0, slideT:0, recoverT:0,
       });
       k++;
     }
@@ -789,20 +795,29 @@ const keys = {};
 let joyVec = {x:0,y:0}, joySprint=false;
 let wantPass=false, wantShoot=false, wantSwitch=false;
 let wantCross=false, wantThrough=false;
+let chargeStart=false, shootRelease=false; // chute com força (segurar X)
 addEventListener('keydown', e=>{
   if($('screen-match').classList.contains('active')){
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     const k=e.key.toLowerCase();
     keys[k]=true;
-    if(e.key===' '||k==='c') wantPass=true;   // C = passe curto
-    if(k==='x') wantShoot=true;               // X = chute
+    if(e.key===' '||k==='c') wantPass=true;   // C = passe curto / dividida
+    if(k==='x' && !e.repeat) chargeStart=true; // X (segurar) = força do chute
     if(k==='z') wantCross=true;               // Z = cruzamento
-    if(k==='v') wantThrough=true;             // V = passe enfiado
+    if(k==='v') wantThrough=true;             // V = passe enfiado / carrinho
     if(k==='b') wantSwitch=true;              // B = trocar jogador
     if(e.key==='Escape'||k==='m') togglePause(); // M = pausa
   }
 });
-addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+addEventListener('keyup', e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=false;
+  if(k==='x') shootRelease=true;
+});
+addEventListener('blur', ()=>{ // evita teclas presas ao trocar de janela
+  for(const k in keys) keys[k]=false;
+  joyVec={x:0,y:0}; joySprint=false;
+});
 function inputDir(){
   let x=0,y=0;
   if(keys['arrowleft']||keys['a'])x-=1;
@@ -840,7 +855,9 @@ function joyEnd(e){ if(e.pointerId!==joyId)return; joyId=null; joyOrigin=null; j
 joyZone.addEventListener('pointerup', joyEnd);
 joyZone.addEventListener('pointercancel', joyEnd);
 $('tb-pass').addEventListener('pointerdown', e=>{e.preventDefault(); wantPass=true;});
-$('tb-shoot').addEventListener('pointerdown', e=>{e.preventDefault(); wantShoot=true;});
+$('tb-shoot').addEventListener('pointerdown', e=>{e.preventDefault(); chargeStart=true;});
+$('tb-shoot').addEventListener('pointerup', e=>{e.preventDefault(); shootRelease=true;});
+$('tb-shoot').addEventListener('pointercancel', ()=>{ shootRelease=true; });
 $('tb-cross').addEventListener('pointerdown', e=>{e.preventDefault(); wantCross=true;});
 $('tb-through').addEventListener('pointerdown', e=>{e.preventDefault(); wantThrough=true;});
 
@@ -887,13 +904,34 @@ function step(dt){
   M.switchT -= dt;
   const userHasBall = b.owner && b.owner.team===0;
   if(userHasBall){ if(!b.owner.isGK) M.controlled = b.owner; }
-  else if(wantSwitch || M.switchT<=0){
+  else if(wantSwitch){
     let best=null, bd=1e9;
     M.players.forEach(p=>{ if(p.team===0 && !p.isGK){ const q=(p.x-b.x)**2+(p.y-b.y)**2; if(q<bd){bd=q; best=p;} } });
     if(best) M.controlled = best;
     M.switchT = 0.4;
   }
+  else if(M.switchT<=0){
+    /* se um companheiro vai receber o passe, controla ele */
+    if(b.receiver && b.receiver.team===0 && !b.receiver.isGK && !b.owner){ M.controlled = b.receiver; }
+    else {
+      let best=null, bd=1e9;
+      M.players.forEach(p=>{ if(p.team===0 && !p.isGK){
+        let q=(p.x-b.x)**2+(p.y-b.y)**2;
+        if(p.recoverT>0 || p.slideT>0) q+=1e8; // caído: evita assumir
+        if(q<bd){bd=q; best=p;}
+      } });
+      if(best) M.controlled = best;
+    }
+    M.switchT = 0.4;
+  }
   wantSwitch=false;
+
+  /* timers de dividida/carrinho de todos */
+  M.players.forEach(p=>{
+    if(p.recoverT>0) p.recoverT-=dt;
+    if(p.tackleT>0){ p.tackleT-=dt; if(p.tackleT<=0) p.recoverT=0.3; }
+    if(p.slideT>0){ p.slideT-=dt; if(p.slideT<=0) p.recoverT=0.7; }
+  });
 
   /* ---- movimento do jogador controlado ---- */
   const dir = inputDir();
@@ -901,22 +939,38 @@ function step(dt){
   M.players.forEach(p=>{ p.tx=null; });
   const cp = M.controlled;
   if(cp){
-    const mul = M.sprint? 1.3 : 1.06; // correr: mais veloz, toque mais longo
-    if(dir){ cp.vx = dir.x*cp.speed*mul; cp.vy = dir.y*cp.speed*mul; }
-    else { cp.vx*=0.8; cp.vy*=0.8; }
+    if(cp.recoverT>0){ cp.vx*=0.9; cp.vy*=0.9; }               // levantando do bote
+    else if(cp.tackleT>0 || cp.slideT>0){ /* segue o embalo */ }
+    else {
+      const mul = M.sprint? 1.3 : 1.06; // correr: mais veloz, toque mais longo
+      if(dir){ cp.vx = dir.x*cp.speed*mul; cp.vy = dir.y*cp.speed*mul; }
+      else { cp.vx*=0.8; cp.vy*=0.8; }
+    }
     cp.x += cp.vx*dt; cp.y += cp.vy*dt;
   }
 
   /* ---- ações do usuário ---- */
   if(cp && b.owner===cp){
-    if(wantShoot){ doShoot(cp); }
-    else if(wantCross){ doCross(cp); }
-    else if(wantThrough){ doThrough(cp, dir); }
-    else if(wantPass){ doPass(cp, dir); }
-  } else if(wantPass && !b.owner && b.receiver===null){
-    /* chutão de alívio se a bola estiver livre e perto */
-    if(cp && Math.hypot(cp.x-b.x, cp.y-b.y)<28){ kickBall(cp, {x:M.att[0],y:rnd(-0.3,0.3)}, 430); }
+    if(chargeStart){ M.charging=true; M.charge=0; }
+    if(M.charging) M.charge = Math.min(1, (M.charge||0)+dt*1.5);
+    if(shootRelease && M.charging){ doShoot(cp, 460+M.charge*430, M.charge); M.charging=false; }
+    else if(wantCross){ doCross(cp); M.charging=false; }
+    else if(wantThrough){ doThrough(cp, dir); M.charging=false; }
+    else if(wantPass){ doPass(cp, dir); M.charging=false; }
+  } else {
+    M.charging=false;
+    if(wantPass){
+      if(!b.owner && b.receiver===null && cp && Math.hypot(cp.x-b.x, cp.y-b.y)<28){
+        kickBall(cp, {x:M.att[0],y:rnd(-0.3,0.3)}, 430); // chutão de alívio
+      } else if(cp && cp.recoverT<=0 && cp.tackleT<=0 && cp.slideT<=0){
+        startTackle(cp, dir, false); // dividida em pé
+      }
+    }
+    if(wantThrough && cp && cp.recoverT<=0 && cp.tackleT<=0 && cp.slideT<=0){
+      startTackle(cp, dir, true); // carrinho
+    }
   }
+  chargeStart=false; shootRelease=false;
   wantPass=false; wantShoot=false; wantCross=false; wantThrough=false;
 
   /* ---- IA dos companheiros e adversários ---- */
@@ -925,6 +979,8 @@ function step(dt){
   /* ---- movimento demais jogadores ---- */
   M.players.forEach(p=>{
     if(p===cp) return;
+    if(p.tackleT>0 || p.slideT>0){ p.x+=p.vx*dt; p.y+=p.vy*dt; return; } // embalo do bote
+    if(p.recoverT>0){ p.vx*=0.9; p.vy*=0.9; p.x+=p.vx*dt; p.y+=p.vy*dt; return; } // levantando
     if(p.tx!=null){
       const dx=p.tx-p.x, dy=p.ty-p.y, m=Math.hypot(dx,dy);
       const sp = p.speed * (p.spMul||1);
@@ -950,7 +1006,7 @@ function step(dt){
     const o=b.owner;
     const fm=Math.hypot(o.vx,o.vy);
     const fx = fm>10? o.vx/fm : M.att[o.team], fy = fm>10? o.vy/fm : 0;
-    const off = (o===M.controlled && M.sprint)? 21 : 14; // correndo, o toque fica mais longo
+    const off = (o===M.controlled && M.sprint)? 24 : 16; // correndo, o toque fica mais longo
     b.x = o.x + fx*off; b.y = o.y + fy*off;
     b.vx=0; b.vy=0;
   } else {
@@ -1004,6 +1060,17 @@ function step(dt){
     for(const p of M.players){
       if(p.team===o.team) continue;
       const dist=Math.hypot(p.x-o.x,p.y-o.y);
+      /* dividida/carrinho do usuário: uma chance forte por investida */
+      if(p.team===0 && (p.tackleT>0 || p.slideT>0) && !p.tackleTried && dist < (p.slideT>0? 32 : 26)){
+        p.tackleTried=true;
+        if(Math.random() < (p.slideT>0? 0.85 : 0.75)){
+          b.owner=null; b.receiver=null; b.shot=false;
+          b.vx=p.vx*0.45+rnd(-60,60); b.vy=p.vy*0.45+rnd(-60,60);
+          b.noTouch=o; b.noTouchT=0.25; b.lastTouch=p;
+          break;
+        }
+        continue;
+      }
       if(dist<22){
         let rate;
         if(p.team===0) rate = (p===M.controlled)? 2.2 : 0.8;
@@ -1034,6 +1101,22 @@ function step(dt){
   updateHUD();
 }
 
+/* dividida (em pé) ou carrinho: investida na direção do input ou da bola */
+function startTackle(p, dir, slide){
+  const b=M.ball;
+  let dx, dy;
+  if(dir){ dx=dir.x; dy=dir.y; }
+  else {
+    const t=b.owner||b;
+    dx=t.x-p.x; dy=t.y-p.y;
+    const m=Math.hypot(dx,dy)||1; dx/=m; dy/=m;
+  }
+  const boost = slide? 2.1 : 1.7;
+  p.vx = dx*p.speed*boost; p.vy = dy*p.speed*boost;
+  if(slide){ p.slideT=0.5; p.wasSlide=true; }
+  else { p.tackleT=0.32; p.wasSlide=false; }
+  p.tackleTried=false;
+}
 function takeBall(p){
   const b=M.ball;
   b.owner=p; b.receiver=null; b.shot=false; b.vx=0; b.vy=0;
@@ -1110,17 +1193,19 @@ function doThrough(p, dir){
   M.ball.receiver=best; M.ball.shot=false;
   if(p.team===0) M.controlled=best;
 }
-function doShoot(p){
-  if(location.hash==='#turbo') console.log('SHOT t'+p.team+' x'+Math.round(p.x)+' y'+Math.round(p.y));
+function doShoot(p, power, charge){
+  power = power||620; charge = charge??0.6;
+  if(location.hash==='#turbo') console.log('SHOT t'+p.team+' x'+Math.round(p.x)+' y'+Math.round(p.y)+' pow'+Math.round(power));
   const b=M.ball;
   const gx = attGoalX(p.team)===W? W-4 : 4;
   const dist = Math.hypot(gx-p.x, H/2-p.y);
-  /* precisão conforme overall (e dificuldade p/ IA) */
+  /* precisão conforme overall (e dificuldade p/ IA); chute muito forte sai mais aberto */
   let noise = (dist/W) * (46 - (p.ovr-70)*0.9);
   if(p.team===1) noise *= M.d.aiShotNoise;
+  if(charge>0.85) noise *= 1.6;
   const ty = H/2 + rnd(-1,1)*noise*3 + rnd(-GOAL_H*0.55, GOAL_H*0.55);
   const ang = Math.atan2(ty-p.y, gx-p.x);
-  kickBall(p, {x:Math.cos(ang), y:Math.sin(ang)}, 620);
+  kickBall(p, {x:Math.cos(ang), y:Math.sin(ang)}, power);
   b.shot=true; b.shotBy=p.team;
 }
 
@@ -1155,6 +1240,9 @@ function aiUpdate(dt){
         if(mates.length){ passTo(p, mates[Math.floor(Math.random()*mates.length)]); continue; }
       }
       const dg = Math.abs(p.x - attGoalX(1));
+      /* jogadas de FIFA: cruza da ponta, enfia no meio */
+      if((p.y<150 || p.y>H-150) && dg<340 && Math.random()<1.1*dt){ doCross(p); continue; }
+      if(dg>340 && Math.random()<0.35*dt){ doThrough(p, null); continue; }
       if(dg<330 && Math.random()< (0.9+d.aiReact)*dt*1.6){ doShoot(p); continue; }
       if(dg<80) { doShoot(p); continue; }
       p.tx=tx; p.ty=ty;
@@ -1312,36 +1400,65 @@ function pkEnd(won){
 }
 
 /* ---------- desenho ---------- */
+function kitLum(hex){
+  const n=parseInt(hex.slice(1),16);
+  return (0.299*((n>>16)&255) + 0.587*((n>>8)&255) + 0.114*(n&255))/255;
+}
 function drawPlayer(p){
   const kit  = p.isGK? (p.team===0? '#ff8c42' : '#8e6bd6')
                      : (p.team===0? '#ffd83d' : (COUNTRIES[M.round.opp].c||'#e74c3c'));
   const kit2 = p.team===0? '#1c6b35' : '#2c3e50'; // calção
   const sw = Math.sin(p.stride||0)*4;             // passada das pernas
+  const lying = p.slideT>0 || (p.recoverT>0 && p.wasSlide); // carrinho
   cx.save(); cx.translate(p.x, p.y);
   /* sombra */
-  cx.beginPath(); cx.ellipse(0, 13, 9, 3.2, 0, 0, 7);
+  cx.beginPath(); cx.ellipse(0, 19, lying?16:12, 4.2, 0, 0, 7);
   cx.fillStyle='rgba(0,0,0,.28)'; cx.fill();
+  cx.scale(1.45,1.45); // corpo maior, dá pra ver o rosto
   if(p.face<0) cx.scale(-1,1);
+  if(lying) cx.rotate(-1.25);
   cx.lineCap='round';
-  /* pernas + chuteiras */
+  /* pernas + chuteiras (esticadas no carrinho) */
   cx.strokeStyle=p.skin; cx.lineWidth=3;
-  cx.beginPath(); cx.moveTo(-2.5,3); cx.lineTo(-2.5+sw,11); cx.stroke();
-  cx.beginPath(); cx.moveTo(2.5,3);  cx.lineTo(2.5-sw,11);  cx.stroke();
+  cx.beginPath(); cx.moveTo(-2.5,3); cx.lineTo(-2.5+(lying?5:sw),11); cx.stroke();
+  cx.beginPath(); cx.moveTo(2.5,3);  cx.lineTo(2.5+(lying?4:-sw),11); cx.stroke();
   cx.fillStyle='#1a1a1a';
-  cx.fillRect(-2.5+sw-2, 10, 4.5, 2.6);
-  cx.fillRect(2.5-sw-2, 10, 4.5, 2.6);
+  cx.fillRect(-2.5+(lying?5:sw)-2, 10, 4.5, 2.6);
+  cx.fillRect(2.5+(lying?4:-sw)-2, 10, 4.5, 2.6);
   /* braços (balanço oposto às pernas) */
   cx.strokeStyle=p.skin; cx.lineWidth=2.6;
   cx.beginPath(); cx.moveTo(-4.5,-7); cx.lineTo(-4.5-sw*0.7,-1); cx.stroke();
   cx.beginPath(); cx.moveTo(4.5,-7);  cx.lineTo(4.5+sw*0.7,-1);  cx.stroke();
   /* calção */
   cx.fillStyle=kit2; cx.fillRect(-4.5,0,9,4);
-  /* camisa */
+  /* camisa + número */
   cx.fillStyle=kit; cx.fillRect(-5,-9,10,9);
   cx.strokeStyle='rgba(0,0,0,.25)'; cx.lineWidth=1; cx.strokeRect(-5,-9,10,9);
-  /* cabeça + cabelo */
+  cx.font='bold 5px sans-serif'; cx.textAlign='center';
+  cx.fillStyle = kitLum(kit)>0.55? '#20232b' : '#f5f6f8';
+  cx.fillText(p.num, 0, -3);
+  /* cabeça */
   cx.beginPath(); cx.arc(0,-12.5,4.2,0,7); cx.fillStyle=p.skin; cx.fill();
-  cx.beginPath(); cx.arc(0,-13.3,4.2,Math.PI,2*Math.PI); cx.fillStyle=p.hair; cx.fill();
+  /* penteados variados */
+  cx.fillStyle=p.hair;
+  if(p.hstyle===1){ /* careca: só uma sombra rente */
+    cx.beginPath(); cx.arc(0,-14.2,3.4,Math.PI,2*Math.PI); cx.globalAlpha=0.25; cx.fill(); cx.globalAlpha=1;
+  } else if(p.hstyle===2){ /* black power */
+    cx.beginPath(); cx.arc(0,-15,3.9,0,7); cx.fill();
+  } else if(p.hstyle===3){ /* cabelo longo */
+    cx.beginPath(); cx.arc(0,-13.3,4.2,Math.PI,2*Math.PI); cx.fill();
+    cx.fillRect(-4.9,-13.6,1.7,5); cx.fillRect(3.2,-13.6,1.7,5);
+  } else { /* corte curto */
+    cx.beginPath(); cx.arc(0,-13.3,4.2,Math.PI,2*Math.PI); cx.fill();
+  }
+  /* rosto: olhos + barba */
+  cx.fillStyle='#20232b';
+  cx.beginPath(); cx.arc(-1.5,-12.6,0.6,0,7); cx.fill();
+  cx.beginPath(); cx.arc(1.5,-12.6,0.6,0,7); cx.fill();
+  if(p.beard){
+    cx.strokeStyle=p.hair; cx.lineWidth=1.3;
+    cx.beginPath(); cx.arc(0,-11.6,3.1,0.2*Math.PI,0.8*Math.PI); cx.stroke();
+  }
   cx.restore();
 }
 function draw(){
@@ -1367,15 +1484,22 @@ function draw(){
   const ordered=[...M.players].sort((a,q)=>a.y-q.y);
   for(const p of ordered){
     if(p===M.controlled){
-      cx.beginPath(); cx.ellipse(p.x, p.y+13, 12, 4.5, 0, 0, 7);
+      cx.beginPath(); cx.ellipse(p.x, p.y+19, 15, 5.5, 0, 0, 7);
       cx.strokeStyle='#35e08d'; cx.lineWidth=2.5; cx.stroke();
     }
     drawPlayer(p);
     if(p.team===0){
       cx.font='bold 11px sans-serif'; cx.textAlign='center';
       cx.fillStyle='rgba(255,255,255,.92)';
-      cx.fillText(p.name, p.x, p.y-24);
+      cx.fillText(p.name, p.x, p.y-30);
     }
+  }
+  /* barra de força do chute */
+  if(M.charging && M.ball.owner===M.controlled && M.controlled){
+    const p=M.controlled, c=M.charge||0;
+    cx.fillStyle='rgba(0,0,0,.55)'; cx.fillRect(p.x-20, p.y-46, 40, 7);
+    cx.fillStyle = c>0.85? '#e74c3c' : c>0.55? '#f4a712' : '#35e08d';
+    cx.fillRect(p.x-18, p.y-44.5, 36*c, 4);
   }
   /* bola (cruzamento = bola no alto, sombra separada) */
   const b=M.ball;

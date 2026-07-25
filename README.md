@@ -13,13 +13,15 @@ Jogo de futebol arcade inspirado no FIFA, com jogabilidade fácil, que mistura *
 
 ## ✨ O que torna o jogo único
 
-- **Jogadores de verdade em campo**: sprites animados com uniforme, corrida e sombra (nada de bolinhas!)
+- **Jogadores de verdade em campo**: corpo e rosto — olhos, penteados variados (careca, black power, cabelo longo), barba, tons de pele diferentes, número na camisa, uniforme, corrida animada e sombra
 - **Raridades de figurinha**: Bronze, Prata, Ouro e **Lendária holográfica animada** ✨
 - **Abertura ágil de pacotinhos**: as figurinhas viram sozinhas, uma a uma, da mais fraca até a mais forte
 - **Química de seleção** 🧪: jogadores da mesma seleção dão bônus de overall ao time
 - **O overall importa de verdade**: cada carta define a velocidade e a precisão do jogador em campo
 - **Jogabilidade realista**: lateral, escanteio, tiro de meta, troca de lado no intervalo, corrida com toque longo, bola sobrando no bote
 - **Cruzamento e passe enfiado**, além do passe curto e do chute
+- **Chute com barra de força** (segure e solte, como no FIFA — forte demais sai mais aberto!)
+- **Dividida e carrinho na defesa**, com pose de carrinho e tempo de recuperação se errar
 - **Sons do jogo**: apito, chute e torcida (sintetizados, sem arquivos externos)
 - **Modo Copa** 🏆 com chaveamento e pênaltis (você escolhe o canto do chute e da defesa)
 - **Funciona no celular** 📱 com joystick virtual e botões de toque
@@ -31,9 +33,9 @@ Jogo de futebol arcade inspirado no FIFA, com jogabilidade fácil, que mistura *
 |---|---|---|
 | Mover | Setas ou WASD | Joystick (lado esquerdo da tela) |
 | Cruzamento | Z | Botão CRUZAR |
-| Chute | X | Botão CHUTE |
-| Passe curto | C (ou Espaço) | Botão PASSE |
-| Passe enfiado | V | Botão ENFIADO |
+| Chute (segure = força) | X | Botão CHUTE (segure) |
+| Passe curto / dividida | C (ou Espaço) | Botão PASSE |
+| Passe enfiado / carrinho | V | Botão ENFIADO |
 | Trocar jogador | B | (troca automática) |
 | Correr | N (segure) ou Shift | Empurre o joystick até a borda |
 | Pausa | M ou ESC | Botão ⏸ |
