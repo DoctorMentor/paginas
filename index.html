@@ -179,6 +179,14 @@
   /* pause */
   #pause-box{position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
     background:rgba(4,10,22,.85); border-radius:12px; gap:14px}
+  /* estatísticas */
+  #stats-box{position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(4,10,22,.92); border-radius:12px; gap:12px; padding:16px}
+  #stats-box h2{color:#c9f31d; text-transform:uppercase; font-style:italic}
+  #stats-rows{display:grid; grid-template-columns:90px 200px 90px; gap:5px 10px; font-size:15px; font-weight:700}
+  #stats-rows .sl{text-align:center; opacity:.75; font-size:12.5px; text-transform:uppercase; letter-spacing:1px; align-self:center}
+  #stats-rows .sv{text-align:center; font-weight:900; font-size:17px; font-variant-numeric:tabular-nums}
+  #stats-goals{font-size:13.5px; opacity:.9; text-align:center; line-height:1.7; max-width:420px}
 
   /* ===== FIM ===== */
   .trophy{font-size:96px; animation:bounce 1.6s infinite ease-in-out}
@@ -384,7 +392,14 @@
     <div id="pause-box">
       <h2>Pausa</h2>
       <button class="btn small" id="btn-resume">▶️ Continuar</button>
+      <button class="btn sec small" id="btn-stats-pause">📊 Estatísticas</button>
       <button class="btn sec small" id="btn-quit">🚪 Sair da partida</button>
+    </div>
+    <div id="stats-box">
+      <h2>📊 Estatísticas</h2>
+      <div id="stats-rows"></div>
+      <div id="stats-goals"></div>
+      <button class="btn small" id="btn-stats-close" style="display:none">Fechar</button>
     </div>
   </div>
   <div id="controls-help">🎮 Mover: setas/WASD • <b>Z</b> cruzamento • <b>X</b> chute (segure p/ força!) • <b>C</b> passe / dividida • <b>V</b> enfiado / carrinho • <b>B</b> trocar • <b>N</b> correr • <b>M</b> pausa<br>📱 No celular: joystick à esquerda (borda = correr) + botões à direita (segure CHUTE para dar força)</div>
@@ -820,6 +835,8 @@ function startMatch(){
   M.players = [...buildUserTeam(), ...buildOppTeam(M.oppOvr, round.opp)];
   M.ball = {x:W/2, y:H/2, vx:0, vy:0, owner:null, receiver:null, shot:false, noTouch:null, noTouchT:0};
   M.score = [0,0];
+  M.stats = {poss:[0,0], shots:[0,0], onTarget:[0,0], fouls:[0,0], corners:[0,0], cards:[[],[]]};
+  M.goals = [];
   M.half = 1; M.t = 0;
   M.state = 'kickoff'; M.stateT = 1.2;
   M.controlled = null; M.switchT = 0;
@@ -853,7 +870,8 @@ function giveKickoff(team){
 function setPiece(kind, team, x, y){
   const b=M.ball;
   whistleShort();
-  M.msg(kind==='LATERAL'? '🤾 Lateral' : '🚩 Escanteio');
+  M.msg(kind==='LATERAL'? '🤾 Lateral' : kind==='FALTA'? '⚠️ Falta!' : '🚩 Escanteio');
+  if(kind==='ESCANTEIO') M.stats.corners[team]++;
   M.state='kickoff'; M.stateT=1.0;
   const cands = M.players.filter(p=>p.team===team && !p.isGK);
   let taker=cands[0], bd=1e9;
@@ -882,10 +900,38 @@ function goalKick(team){
   gk.holdT=0.9;
 }
 
+function currentMin(){
+  if(M.half===3) return 90 + Math.min(30, Math.floor(M.t/HALF_LEN*30));
+  return Math.min(45, Math.floor(M.t/HALF_LEN*45)) + (M.half===2?45:0);
+}
 function updateHUD(){
   $('score').textContent = `MEU TIME ${M.score[0]} x ${M.score[1]} ${M.oppName}`;
-  const min = Math.min(45, Math.floor(M.t/HALF_LEN*45)) + (M.half===2?45:0);
-  $('clock').textContent = `${M.half}ºT ${String(min).padStart(2,'0')}'`;
+  const min = currentMin();
+  $('clock').textContent = (M.half===3? 'PRO ' : `${M.half}ºT `) + `${String(min).padStart(2,'0')}'`;
+}
+/* ---------- estatísticas ---------- */
+function renderStats(){
+  const s=M.stats, tp=(s.poss[0]+s.poss[1])||1;
+  const p0=Math.round(s.poss[0]/tp*100);
+  const rows=[
+    ['Posse', p0+'%', (100-p0)+'%'],
+    ['Finalizações', s.shots[0], s.shots[1]],
+    ['No gol', s.onTarget[0], s.onTarget[1]],
+    ['Escanteios', s.corners[0], s.corners[1]],
+    ['Faltas', s.fouls[0], s.fouls[1]],
+    ['Cartões', s.cards[0].join('')||'—', s.cards[1].join('')||'—'],
+  ];
+  $('stats-rows').innerHTML =
+    `<div class="sv">MEU TIME</div><div class="sl"></div><div class="sv">${M.oppName}</div>` +
+    rows.map(r=>`<div class="sv">${r[1]}</div><div class="sl">${r[0]}</div><div class="sv">${r[2]}</div>`).join('');
+  $('stats-goals').innerHTML = M.goals.length?
+    '⚽ ' + M.goals.map(g=>`${g.team===0?'🟡':'⚪'} ${g.name} ${g.min}'`).join(' • ') : '';
+}
+function showStats(ms, cb){
+  renderStats();
+  $('btn-stats-close').style.display='none';
+  $('stats-box').style.display='flex';
+  setTimeout(()=>{ $('stats-box').style.display='none'; if(cb) cb(); }, ms);
 }
 
 /* ---------- entrada ---------- */
@@ -961,6 +1007,12 @@ $('tb-through').addEventListener('pointerdown', e=>{e.preventDefault(); wantThro
 
 $('btn-pause').onclick = togglePause;
 $('btn-resume').onclick = togglePause;
+$('btn-stats-pause').onclick = ()=>{
+  renderStats();
+  $('btn-stats-close').style.display='inline-block';
+  $('stats-box').style.display='flex';
+};
+$('btn-stats-close').onclick = ()=>{ $('stats-box').style.display='none'; };
 $('btn-quit').onclick = ()=>{ M.running=false; $('pause-box').style.display='none'; showCup(); };
 function togglePause(){
   if(!M.running || M.state==='penalties') return;
@@ -984,16 +1036,35 @@ function step(dt){
   if(M.state==='kickoff'){ M.stateT-=dt; if(M.stateT<=0){ M.state='play'; M.hideMsg(); } }
   if(M.state==='play'){
     M.t += dt;
+    if(b.owner) M.stats.poss[b.owner.team]+=dt; // posse de bola
     if(M.t>=HALF_LEN){
       if(M.half===1){
         M.half=2; M.t=0; M.msg('INTERVALO — troca de lado');
         whistleLong();
         M.att[0]*=-1; M.att[1]*=-1;
         M.players.forEach(p=>{ p.homeX = W - p.homeX; });
-        M.state='kickoff'; M.stateT=2;
-        setTimeout(()=>{ giveKickoff(1); }, 900);
+        M.state='kickoff'; M.stateT=3.4;
+        showStats(2800);
+        setTimeout(()=>{ giveKickoff(1); }, 2900);
         updateHUD(); return;
-      } else { whistleLong(); endMatch(); return; }
+      }
+      if(M.half===2){
+        if(M.score[0]===M.score[1]){
+          /* empate no tempo normal: PRORROGAÇÃO */
+          M.half=3; M.t=0; M.msg('PRORROGAÇÃO!');
+          whistleLong();
+          M.state='kickoff'; M.stateT=2.2;
+          setTimeout(()=>{ giveKickoff(Math.random()<0.5?0:1); }, 1100);
+          updateHUD(); return;
+        }
+        whistleLong(); M.state='freeze';
+        showStats(2800, ()=>endMatch());
+        return;
+      }
+      /* fim da prorrogação */
+      whistleLong(); M.state='freeze';
+      showStats(2800, ()=>endMatch());
+      return;
     }
   }
   if(b.noTouchT>0){ b.noTouchT-=dt; if(b.noTouchT<=0) b.noTouch=null; }
@@ -1140,6 +1211,7 @@ function step(dt){
         /* defesa do goleiro: uma tentativa por chute */
         b.saveTried = true;
         const gkSkill = p.team===1? d.gk : clamp(0.55+(p.ovr-75)*0.02, 0.45, 0.9);
+        if(b.shotBy!==undefined) M.stats.onTarget[b.shotBy]++;
         if(Math.random() < gkSkill){
           if(location.hash==='#turbo') console.log('SAVE gk t'+p.team);
           p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.55; // voo do goleiro
@@ -1164,16 +1236,18 @@ function step(dt){
     for(const p of M.players){
       if(p.team===o.team) continue;
       const dist=Math.hypot(p.x-o.x,p.y-o.y);
-      /* dividida/carrinho do usuário: uma chance forte por investida */
+      /* dividida/carrinho do usuário: uma chance forte por investida; errar pode ser falta */
       if(p.team===0 && (p.tackleT>0 || p.slideT>0) && !p.tackleTried && dist < (p.slideT>0? 32 : 26)){
         p.tackleTried=true;
-        if(Math.random() < (p.slideT>0? 0.85 : 0.75)){
+        const isSlide = p.slideT>0;
+        if(Math.random() < (isSlide? 0.85 : 0.75)){
           b.owner=null; b.receiver=null; b.shot=false;
           b.vx=p.vx*0.45+rnd(-60,60); b.vy=p.vy*0.45+rnd(-60,60);
           b.noTouch=o; b.noTouchT=0.25; b.lastTouch=p;
-          break;
+        } else if(Math.random() < (isSlide? 0.5 : 0.25)){
+          foul(p, o, isSlide);
         }
-        continue;
+        break;
       }
       if(o.isGK) continue; /* goleiro com a bola na mão não pode ser desarmado */
       if(dist<22){
@@ -1181,6 +1255,7 @@ function step(dt){
         if(p.team===0) rate = (p===M.controlled)? 2.2 : 0.8;
         else rate = d.aiSteal;
         if(Math.random() < rate*dt){
+          if(p.team===1 && Math.random()<0.22){ foul(p, o, Math.random()<0.4); break; } /* falta da IA */
           if(Math.random()<0.35){ /* a bola sobra no bote */
             b.owner=null; b.receiver=null; b.shot=false;
             b.vx=rnd(-170,170); b.vy=rnd(-170,170);
@@ -1217,6 +1292,51 @@ function step(dt){
   updateHUD();
 }
 
+/* ---------- faltas, cartões e pênalti de partida ---------- */
+function inBox(x, y, goalX){
+  return (goalX===0? x<140 : x>W-140) && Math.abs(y-H/2)<150;
+}
+function foul(off, vic, harsh){
+  M.stats.fouls[off.team]++;
+  let cardMsg='';
+  if(Math.random() < (harsh? 0.65 : 0.3)){
+    off.yellow = (off.yellow||0)+1;
+    if(off.yellow>=2){
+      cardMsg=' 🟥 '+off.name+' expulso!';
+      M.stats.cards[off.team].push('🟥');
+      sendOff(off);
+    } else {
+      cardMsg=' 🟨 amarelo p/ '+off.name;
+      M.stats.cards[off.team].push('🟨');
+    }
+  }
+  const spot={x:vic.x, y:vic.y};
+  if(inBox(spot.x, spot.y, ownGoalX(off.team))){
+    /* falta dentro da área: PÊNALTI na partida */
+    whistleLong();
+    M.msg('⚠️ PÊNALTI!'+cardMsg);
+    M.state='freeze';
+    setTimeout(()=>matchPenalty(vic.team), 1200);
+    return;
+  }
+  setPiece('FALTA', vic.team, clamp(spot.x,20,W-20), clamp(spot.y,20,H-20));
+  M.msg('⚠️ Falta!'+cardMsg);
+}
+function sendOff(p){
+  if(M.ball.owner===p){ M.ball.owner=null; M.ball.receiver=null; }
+  if(M.ball.receiver===p) M.ball.receiver=null;
+  M.players = M.players.filter(q=>q!==p);
+  if(M.controlled===p) M.controlled = M.players.find(q=>q.team===0 && !q.isGK) || null;
+}
+function matchPenalty(team){
+  M.state='penalties';
+  PK.single=true; PK.singleTeam=team;
+  $('pk-d-user').textContent=''; $('pk-d-ai').textContent='';
+  $('pk-score').textContent = `MEU TIME ${M.score[0]} x ${M.score[1]} ${M.oppName}`;
+  $('pk-msg').textContent = team===0? 'PÊNALTI! Escolha o canto do chute!' : 'PÊNALTI contra! Escolha o canto da defesa!';
+  $('pk-box').style.display='flex';
+  pkSetButtons(true);
+}
 /* dividida (em pé) ou carrinho: investida na direção do input ou da bola */
 function startTackle(p, dir, slide){
   const b=M.ball;
@@ -1324,6 +1444,7 @@ function doThrough(p, dir){
 }
 function doShoot(p, power, charge){
   power = power||620; charge = charge??0.6;
+  M.stats.shots[p.team]++;
   if(location.hash==='#turbo') console.log('SHOT t'+p.team+' x'+Math.round(p.x)+' y'+Math.round(p.y)+' pow'+Math.round(power));
   const b=M.ball;
   const gx = attGoalX(p.team)===W? W-4 : 4;
@@ -1428,6 +1549,7 @@ function goal(team){
   whistleLong(); if(team===0) cheer();
   updateHUD();
   const autor = (b.lastTouch && b.lastTouch.team===team)? b.lastTouch.name : null;
+  M.goals.push({team, name:autor||'(contra)', min:currentMin()});
   M.msg(team===0? ('⚽ GOOOOOL!'+(autor? ' '+autor+'!':'')) : '😱 Gol do adversário...');
   M.state='kickoff'; M.stateT=2.2;
   /* tira a bola de trás da linha imediatamente */
@@ -1462,6 +1584,7 @@ function finishMatch(won){
 const PK = {};
 function startPenalties(){
   M.state='penalties';
+  PK.single=false;
   PK.userGoals=0; PK.aiGoals=0; PK.kick=0; PK.userTurn=true; PK.sudden=false;
   PK.userHist=[]; PK.aiHist=[];
   $('pk-box').style.display='flex';
@@ -1481,6 +1604,31 @@ document.querySelectorAll('#pk-btns .btn').forEach(b=>{
 function pkChoose(side){
   pkSetButtons(false);
   const d=M.d;
+  /* pênalti único durante a partida (falta na área) */
+  if(PK.single){
+    let scored, txt;
+    if(PK.singleTeam===0){
+      const gk=Math.floor(Math.random()*3);
+      scored = !(gk===side && Math.random() < (0.35 + d.gk*0.45));
+      txt = scored? '⚽ GOL DE PÊNALTI!' : 'O goleiro defendeu! 😖';
+    } else {
+      const aiSide=Math.floor(Math.random()*3);
+      const miss=Math.random()<0.08;
+      scored = !miss && !(aiSide===side && Math.random()<0.72);
+      txt = miss? 'Ele chutou pra fora! 😂' : scored? 'Ele converteu... 😕' : 'DEFESAÇA! Você pegou! 🧤';
+    }
+    setTimeout(()=>{
+      $('pk-msg').textContent = txt;
+      setTimeout(()=>{
+        $('pk-box').style.display='none';
+        const team=PK.singleTeam; PK.single=false;
+        M.state='play';
+        if(scored){ M.ball.lastTouch={team, name:'(pênalti)', isGK:false}; goal(team); }
+        else goalKick(1-team);
+      }, 1300);
+    }, 700);
+    return;
+  }
   if(PK.userTurn){
     const gk = Math.floor(Math.random()*3);
     const saved = gk===side && Math.random() < (0.35 + d.gk*0.45);

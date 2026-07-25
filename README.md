@@ -20,6 +20,9 @@ Jogo de futebol arcade inspirado no FIFA, com jogabilidade fácil, que mistura *
 - **Química de seleção** 🧪: jogadores da mesma seleção dão bônus de overall ao time
 - **O overall importa de verdade**: cada carta define a velocidade e a precisão do jogador em campo
 - **Jogabilidade realista**: lateral, escanteio, tiro de meta, troca de lado no intervalo, corrida com toque longo, bola sobrando no bote
+- **Faltas e cartões** 🟨🟥: carrinho errado pode dar falta, amarelo e até expulsão (o time joga com um a menos!); falta na área vira **pênalti na hora**
+- **Prorrogação** no empate do mata-mata, antes da disputa de pênaltis
+- **Estatísticas da partida** 📊: posse de bola, finalizações, no gol, escanteios, faltas, cartões e autores dos gols — no intervalo, no fim e no menu de pausa
 - **Cruzamento e passe enfiado**, além do passe curto e do chute
 - **Chute com barra de força** (segure e solte, como no FIFA — forte demais sai mais aberto!)
 - **Dividida e carrinho na defesa**, com pose de carrinho e tempo de recuperação se errar
