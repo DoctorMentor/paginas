@@ -190,6 +190,91 @@
     .cardfront .ovr{font-size:24px} .cardfront .flagbig{font-size:34px}
     .cardfront .pname{font-size:12px} .cardfront .pos{font-size:11px}
   }
+
+  /* ================= VISUAL EA FC / FIFA 26 =================
+     UI em carbono escuro + verde-limão; dourado fica só nas cartas */
+  :root{ --lime:#c9f31d; --lime-dark:#7ea50a; --carbon:#0c1017; --panel:rgba(255,255,255,.045); }
+  body{
+    background:
+      repeating-linear-gradient(115deg, rgba(255,255,255,.02) 0 2px, transparent 2px 110px),
+      radial-gradient(1100px 620px at 78% -10%, #1b2740 0%, #0c1320 52%, #05070d 100%);
+  }
+  h1.logo{
+    font-style:italic; text-transform:uppercase;
+    background:linear-gradient(180deg,#ffffff 52%, var(--lime));
+    -webkit-background-clip:text; background-clip:text;
+    text-shadow:none; filter:drop-shadow(0 6px 18px rgba(201,243,29,.25));
+  }
+  h1.logo::after{
+    content:''; display:block; width:130px; height:6px; margin:10px auto 0;
+    background:var(--lime); transform:skewX(-22deg);
+  }
+  .sub{color:#aeb8c8}
+  .btn{
+    background:var(--lime); color:#0a0d12; border-radius:3px;
+    text-transform:uppercase; font-style:italic; letter-spacing:1px;
+    transform:skewX(-10deg);
+    box-shadow:0 4px 0 var(--lime-dark), 0 10px 26px rgba(201,243,29,.22);
+  }
+  .btn:active{ transform:skewX(-10deg) translateY(3px); box-shadow:0 1px 0 var(--lime-dark); }
+  .btn.sec{
+    background:#151c2a; color:#e8edf5; border:1px solid rgba(255,255,255,.25);
+    box-shadow:0 4px 0 #04060a, 0 10px 22px rgba(0,0,0,.4);
+  }
+  .btn.sec:active{ box-shadow:0 1px 0 #04060a; }
+  .diff{
+    background:#131a27; border:1px solid rgba(255,255,255,.16); border-radius:3px;
+    transform:skewX(-10deg); text-transform:uppercase; font-style:italic; color:#aeb8c8;
+  }
+  .diff.on{ border-color:var(--lime); color:var(--lime); background:rgba(201,243,29,.08); }
+  .pill{
+    background:#121927; border:1px solid rgba(255,255,255,.14); border-radius:3px;
+    transform:skewX(-10deg); text-transform:uppercase; font-size:12.5px; letter-spacing:1px;
+  }
+  .pill b{ color:var(--lime); }
+  .rules{
+    background:var(--panel); border:1px solid rgba(255,255,255,.09);
+    border-left:4px solid var(--lime); border-radius:6px;
+  }
+  .rules b{ color:var(--lime); }
+  #pack-closed{
+    background:linear-gradient(160deg,#232e4e 0%, #121a30 55%, #0a0f1e 100%);
+    border-radius:8px;
+  }
+  #pack-hint{ color:#aeb8c8; }
+  #squad-box{
+    background:var(--panel); border:1px solid rgba(255,255,255,.1);
+    border-top:3px solid var(--lime); border-radius:6px;
+  }
+  #squad-box h3{ color:#fff; text-transform:uppercase; font-style:italic; }
+  .sq-group .gt{ color:var(--lime); opacity:.9; }
+  .sq-slot .so{ color:var(--lime); }
+  .b-row{
+    background:var(--panel); border:1px solid rgba(255,255,255,.1); border-radius:4px;
+    transform:skewX(-6deg); text-transform:uppercase; font-size:13.5px;
+  }
+  .b-row span{ display:inline-block; transform:skewX(6deg); }
+  .b-row.now{ border-color:var(--lime); background:rgba(201,243,29,.07); }
+  .b-row .ph{ color:var(--lime); }
+  #hud{ width:100%; max-width:1000px; justify-content:flex-start; margin-left:auto; margin-right:auto; }
+  #score{ font-style:italic; }
+  #clock{ color:var(--lime); font-style:italic; }
+  #big-msg{
+    font-style:italic; text-transform:uppercase; color:#fff;
+    text-shadow:0 4px 0 rgba(0,0,0,.5), 0 0 38px rgba(201,243,29,.55);
+  }
+  #controls-help{
+    opacity:1; color:#aeb8c8; margin-top:10px; line-height:2;
+    background:rgba(10,14,22,.75); border:1px solid rgba(255,255,255,.08);
+    padding:8px 16px; border-radius:4px;
+  }
+  #controls-help b{
+    display:inline-block; background:#1a2334; border:1px solid rgba(255,255,255,.3);
+    border-bottom-width:2.5px; border-radius:4px; padding:0 8px; margin:0 2px;
+    color:var(--lime); font-size:12.5px; font-style:normal;
+  }
+  #pk-box h2, #pause-box h2{ color:var(--lime); text-transform:uppercase; font-style:italic; }
+  #chem-line{ border-radius:4px; }
 </style>
 </head>
 <body>
@@ -297,7 +382,7 @@
       </div>
     </div>
     <div id="pause-box">
-      <h2 style="color:var(--gold)">Pausa</h2>
+      <h2>Pausa</h2>
       <button class="btn small" id="btn-resume">▶️ Continuar</button>
       <button class="btn sec small" id="btn-quit">🚪 Sair da partida</button>
     </div>
