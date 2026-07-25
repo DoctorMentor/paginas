@@ -179,6 +179,14 @@
   /* pause */
   #pause-box{position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
     background:rgba(4,10,22,.85); border-radius:12px; gap:14px}
+  /* tela de VS pré-jogo */
+  #vs-box{position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:34px;
+    background:linear-gradient(120deg, rgba(6,10,20,.96) 40%, rgba(20,30,55,.96)); border-radius:12px}
+  .vs-side{text-align:center}
+  .vs-shield{font-size:74px; filter:drop-shadow(0 8px 20px rgba(0,0,0,.6))}
+  .vs-name{font-weight:900; font-style:italic; text-transform:uppercase; font-size:20px; letter-spacing:1px; margin-top:6px}
+  .vs-mid{font-size:44px; font-weight:900; font-style:italic; color:#c9f31d; text-align:center; line-height:1.1}
+  .vs-mid span{font-size:15px; color:#aeb8c8; letter-spacing:2px; text-transform:uppercase}
   /* estatísticas */
   #stats-box{position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
     background:rgba(4,10,22,.92); border-radius:12px; gap:12px; padding:16px}
@@ -394,6 +402,11 @@
       <button class="btn small" id="btn-resume">▶️ Continuar</button>
       <button class="btn sec small" id="btn-stats-pause">📊 Estatísticas</button>
       <button class="btn sec small" id="btn-quit">🚪 Sair da partida</button>
+    </div>
+    <div id="vs-box">
+      <div class="vs-side"><div class="vs-shield">🟡</div><div class="vs-name">MEU TIME</div></div>
+      <div class="vs-mid">VS<br><span id="vs-phase"></span></div>
+      <div class="vs-side"><div class="vs-shield" id="vs-flag">🔴</div><div class="vs-name" id="vs-opp"></div></div>
     </div>
     <div id="stats-box">
       <h2>📊 Estatísticas</h2>
@@ -838,11 +851,17 @@ function startMatch(){
   M.stats = {poss:[0,0], shots:[0,0], onTarget:[0,0], fouls:[0,0], corners:[0,0], cards:[[],[]]};
   M.goals = [];
   M.half = 1; M.t = 0;
-  M.state = 'kickoff'; M.stateT = 1.2;
+  M.state = 'kickoff'; M.stateT = 2.9;
   M.controlled = null; M.switchT = 0;
-  M.msg('1º TEMPO'); setTimeout(()=>M.hideMsg&&M.hideMsg(), 1100);
+  M.camX = W/2; M.camY = H/2;
   M.oppName = round.opp;
   $('score').style.setProperty('--oppc', COUNTRIES[round.opp].c||'#e74c3c');
+  /* tela de apresentação VS */
+  $('vs-flag').textContent = COUNTRIES[round.opp].f;
+  $('vs-opp').textContent = COUNTRIES[round.opp].n;
+  $('vs-phase').textContent = round.phase;
+  $('vs-box').style.display='flex';
+  setTimeout(()=>{ $('vs-box').style.display='none'; }, 2400);
   giveKickoff(0);
   $('pk-box').style.display='none';
   $('pause-box').style.display='none';
@@ -879,6 +898,7 @@ function setPiece(kind, team, x, y){
   taker.x=x; taker.y=y; taker.vx=0; taker.vy=0;
   b.x=x; b.y=y; b.vx=0; b.vy=0; b.shot=false; b.receiver=null;
   b.owner=taker; b.lastTouch=taker; b.noTouch=null; b.noTouchT=0.6;
+  b.safeT=0.9; b.safeTeam=team; /* cobrança protegida: adversário não rouba na saída */
   if(team===0) M.controlled=taker;
   /* afasta adversários da cobrança */
   M.players.forEach(p=>{
@@ -1068,6 +1088,7 @@ function step(dt){
     }
   }
   if(b.noTouchT>0){ b.noTouchT-=dt; if(b.noTouchT<=0) b.noTouch=null; }
+  if(b.safeT>0) b.safeT-=dt; /* janela de posse protegida (reposições) */
 
   /* troca automática de jogador controlado */
   M.switchT -= dt;
@@ -1114,8 +1135,11 @@ function step(dt){
     else if(cp.tackleT>0 || cp.slideT>0){ /* segue o embalo */ }
     else {
       const mul = M.sprint? 1.3 : 1.06; // correr: mais veloz, toque mais longo
-      if(dir){ cp.vx = dir.x*cp.speed*mul; cp.vy = dir.y*cp.speed*mul; }
-      else { cp.vx*=0.8; cp.vy*=0.8; }
+      const tvx = dir? dir.x*cp.speed*mul : 0;
+      const tvy = dir? dir.y*cp.speed*mul : 0;
+      /* inércia: acelera e freia como um jogador de verdade */
+      const k = Math.min(1, dt*7);
+      cp.vx += (tvx-cp.vx)*k; cp.vy += (tvy-cp.vy)*k;
     }
     cp.x += cp.vx*dt; cp.y += cp.vy*dt;
   }
@@ -1155,7 +1179,9 @@ function step(dt){
     if(p.tx!=null){
       const dx=p.tx-p.x, dy=p.ty-p.y, m=Math.hypot(dx,dy);
       const sp = p.speed * (p.spMul||1);
-      if(m>4){ p.vx=dx/m*sp; p.vy=dy/m*sp; } else { p.vx=0; p.vy=0; }
+      const dvx = m>4? dx/m*sp : 0, dvy = m>4? dy/m*sp : 0;
+      const k = Math.min(1, dt*6); /* inércia */
+      p.vx += (dvx-p.vx)*k; p.vy += (dvy-p.vy)*k;
       p.x+=p.vx*dt; p.y+=p.vy*dt;
     }
   });
@@ -1206,6 +1232,7 @@ function step(dt){
     for(const p of M.players){
       if(p===b.noTouch) continue;
       if(b.aerialT>0 && p!==b.receiver) continue; /* bola alta: só o alvo do cruzamento alcança */
+      if(b.safeT>0 && p.team!==b.safeTeam) continue; /* reposição protegida: só o time que repõe pega */
       const dist = Math.hypot(p.x-b.x, p.y-b.y);
       if(p.isGK && b.shot && !b.saveTried && p.team!==(b.shotBy??-1) && dist<34){
         /* defesa do goleiro: uma tentativa por chute */
@@ -1231,7 +1258,7 @@ function step(dt){
   }
 
   /* ---- roubadas de bola ---- */
-  if(b.owner && b.noTouchT<=0){
+  if(b.owner && b.noTouchT<=0 && !(b.safeT>0 && b.owner.team===b.safeTeam)){
     const o=b.owner;
     for(const p of M.players){
       if(p.team===o.team) continue;
@@ -1282,9 +1309,18 @@ function step(dt){
         const score = Math.min(free,140)*2 + prog*0.15 + (m.pos==='ATA'? -40 : 0);
         if(score>bs){ bs=score; best=m; }
       }
-      if(best){
+      const bestFree = best? opps.reduce((mn,o)=>Math.min(mn, Math.hypot(o.x-best.x,o.y-best.y)), 1e9) : 0;
+      if(best && bestFree>=70){
+        /* reposição alta e protegida para o companheiro livre */
         passTo(gk, best, 560);
         b.aerialT = Math.hypot(best.x-gk.x, best.y-gk.y)/560*0.8;
+        b.safeT = b.aerialT + 0.5; b.safeTeam = gk.team;
+      } else {
+        /* ninguém livre: chutão longo para o meio-campo */
+        const ang = Math.atan2(rnd(H*0.2,H*0.8)-gk.y, (W/2 + M.att[gk.team]*180)-gk.x);
+        kickBall(gk, {x:Math.cos(ang), y:Math.sin(ang)}, 660);
+        b.aerialT = 0.85;
+        b.receiver = best||null;
       }
     }
   }
@@ -1696,9 +1732,10 @@ function drawPlayer(p){
   /* sombra */
   cx.beginPath(); cx.ellipse(0, 19, lying?17:12, 4.2, 0, 0, 7);
   cx.fillStyle='rgba(0,0,0,.3)'; cx.fill();
-  cx.scale(1.5,1.5);
+  cx.scale(1.55,1.55);
   if(p.face<0) cx.scale(-1,1);
   if(lying) cx.rotate(p.diveT>0? (p.diveDir||1)*-1.15 : -1.25);
+  else cx.rotate(Math.min(0.13, Math.hypot(p.vx,p.vy)*0.00045)); /* inclina o corpo na corrida */
   cx.translate(0,bob);
   cx.lineCap='round';
   /* pernas: coxa (pele) + meião (cor do time) + chuteira; chutando = perna esticada */
@@ -1733,7 +1770,10 @@ function drawPlayer(p){
   cx.fillStyle=kit; cx.fillRect(-5,-9.5,10,9.5);
   cx.fillStyle='rgba(255,255,255,.16)'; cx.fillRect(-5,-9.5,10,2.2);
   cx.fillStyle='rgba(0,0,0,.16)'; cx.fillRect(-5,-4.2,10,4.2);
-  cx.strokeStyle='rgba(0,0,0,.3)'; cx.lineWidth=0.8; cx.strokeRect(-5,-9.5,10,9.5);
+  /* friso do uniforme */
+  cx.fillStyle = p.team===0? '#1c6b35' : 'rgba(255,255,255,.75)';
+  cx.fillRect(-5,-1.6,10,1);
+  cx.strokeStyle='rgba(0,0,0,.35)'; cx.lineWidth=0.9; cx.strokeRect(-5,-9.5,10,9.5);
   /* número */
   cx.font='bold 5px sans-serif'; cx.textAlign='center';
   cx.fillStyle = kitLum(kit)>0.55? '#20232b' : '#f5f6f8';
@@ -1781,8 +1821,15 @@ function drawNet(x0){
   cx.fillRect(x0, H/2+GOAL_H, 10, 3);
 }
 function draw(){
-  /* gramado com faixas de corte */
   cx.clearRect(0,0,W,H);
+  /* câmera de transmissão: segue a bola com zoom suave */
+  const Z=1.22;
+  const tcx = clamp(M.ball.x, W/(2*Z), W - W/(2*Z));
+  const tcy = clamp(M.ball.y, H/(2*Z), H - H/(2*Z));
+  M.camX += (tcx-(M.camX??W/2))*0.06; M.camY += (tcy-(M.camY??H/2))*0.06;
+  cx.save();
+  cx.translate(W/2, H/2); cx.scale(Z,Z); cx.translate(-M.camX, -M.camY);
+  /* gramado com faixas de corte */
   for(let i=0;i<8;i++){
     cx.fillStyle = i%2? '#1f8a41':'#1c7a3a';
     cx.fillRect(i*W/8,0,W/8,H);
@@ -1853,8 +1900,10 @@ function draw(){
   cx.fillStyle='#ffffff'; cx.fill();
   cx.lineWidth=1.5; cx.strokeStyle='#222'; cx.stroke();
 
+  cx.restore(); /* fim da câmera — daqui pra baixo é fixo na tela */
+
   /* seta indicando o gol de ataque (troca de lado no intervalo) */
-  cx.font='bold 13px sans-serif'; cx.fillStyle='rgba(255,255,255,.5)'; cx.textAlign='center';
+  cx.font='bold 13px sans-serif'; cx.fillStyle='rgba(255,255,255,.55)'; cx.textAlign='center';
   if(M.att[0]>0){
     cx.fillText('SEU GOL ⬅', 80, 28);
     cx.fillText('➡ ATAQUE AQUI', W-95, 28);
