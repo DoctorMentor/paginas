@@ -13,9 +13,14 @@ Jogo de futebol arcade inspirado no FIFA, com jogabilidade fácil, que mistura *
 
 ## ✨ O que torna o jogo único
 
+- **Jogadores de verdade em campo**: sprites animados com uniforme, corrida e sombra (nada de bolinhas!)
 - **Raridades de figurinha**: Bronze, Prata, Ouro e **Lendária holográfica animada** ✨
+- **Abertura ágil de pacotinhos**: as figurinhas viram sozinhas, uma a uma, da mais fraca até a mais forte
 - **Química de seleção** 🧪: jogadores da mesma seleção dão bônus de overall ao time
 - **O overall importa de verdade**: cada carta define a velocidade e a precisão do jogador em campo
+- **Jogabilidade realista**: lateral, escanteio, tiro de meta, troca de lado no intervalo, corrida com toque longo, bola sobrando no bote
+- **Cruzamento e passe enfiado**, além do passe curto e do chute
+- **Sons do jogo**: apito, chute e torcida (sintetizados, sem arquivos externos)
 - **Modo Copa** 🏆 com chaveamento e pênaltis (você escolhe o canto do chute e da defesa)
 - **Funciona no celular** 📱 com joystick virtual e botões de toque
 - **3 dificuldades**: Fácil, Médio e Difícil
@@ -25,10 +30,13 @@ Jogo de futebol arcade inspirado no FIFA, com jogabilidade fácil, que mistura *
 | Ação | Teclado | Celular |
 |---|---|---|
 | Mover | Setas ou WASD | Joystick (lado esquerdo da tela) |
-| Passe | Espaço | Botão PASSE |
+| Cruzamento | Z | Botão CRUZAR |
 | Chute | X | Botão CHUTE |
-| Trocar jogador | C | (troca automática) |
-| Pausa | ESC | Botão ⏸ |
+| Passe curto | C (ou Espaço) | Botão PASSE |
+| Passe enfiado | V | Botão ENFIADO |
+| Trocar jogador | B | (troca automática) |
+| Correr | N (segure) ou Shift | Empurre o joystick até a borda |
+| Pausa | M ou ESC | Botão ⏸ |
 
 ## 🛠️ Tecnologia
 
