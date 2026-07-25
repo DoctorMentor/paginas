@@ -13,7 +13,8 @@ Jogo de futebol arcade inspirado no FIFA, com jogabilidade fácil, que mistura *
 
 ## ✨ O que torna o jogo único
 
-- **Jogadores de verdade em campo**: corpo e rosto — olhos, penteados variados (careca, black power, cabelo longo), barba, tons de pele diferentes, número na camisa, uniforme, corrida animada e sombra
+- **Jogadores de verdade em campo**: corpo completo e rosto — olhos, penteados variados (careca, black power, cabelo longo), barba, tons de pele, uniforme com sombreamento, meião, número na camisa, luvas no goleiro, gingado de corrida, pose de chute e voo do goleiro na defesa
+- **Interface de transmissão estilo FIFA**: placar de vidro inclinado com as cores dos times, campo com redes nos gols, meia-lua, marca do pênalti, pequena área e arcos de escanteio; indicador de triângulo sobre o jogador controlado e nome do autor do gol
 - **Raridades de figurinha**: Bronze, Prata, Ouro e **Lendária holográfica animada** ✨
 - **Abertura ágil de pacotinhos**: as figurinhas viram sozinhas, uma a uma, da mais fraca até a mais forte
 - **Química de seleção** 🧪: jogadores da mesma seleção dão bônus de overall ao time
