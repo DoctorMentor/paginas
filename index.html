@@ -182,14 +182,15 @@
   /* banner de gol (terço inferior, estilo transmissão) */
   #goal-banner{
     position:absolute; left:0; bottom:15%; z-index:6; pointer-events:none;
-    transform:translateX(-110%) skewX(-8deg); transform-origin:left bottom;
+    transform:translateX(-130%) skewX(-8deg); transform-origin:left bottom;
+    visibility:hidden; opacity:0;
     background:linear-gradient(90deg,#c9f31d,#9fd10c); color:#0a0d12;
     font-weight:900; font-style:italic; text-transform:uppercase; letter-spacing:1px;
     font-size:clamp(13px,2.6vw,19px); padding:10px 28px 10px 18px; border-radius:0 4px 4px 0;
     box-shadow:0 8px 24px rgba(0,0,0,.5);
     transition:transform .45s cubic-bezier(.2,.9,.3,1.15);
   }
-  #goal-banner.show{ transform:translateX(0) skewX(-8deg); }
+  #goal-banner.show{ transform:translateX(0) skewX(-8deg); visibility:visible; opacity:1; }
   #goal-banner.opp{ background:linear-gradient(90deg,#e74c3c,#b03024); color:#fff; }
   /* tela de VS pré-jogo */
   #vs-box{position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:34px;
@@ -317,6 +318,10 @@
       <button class="diff" data-d="facil">😄 Fácil</button>
       <button class="diff on" data-d="medio">😎 Médio</button>
       <button class="diff" data-d="dificil">🔥 Difícil</button>
+    </div>
+    <div class="diff-row">
+      <button class="diff on" data-v="3d">📺 Câmera 3D (PlayStation)</button>
+      <button class="diff" data-v="2d">🔼 Visão 2D clássica</button>
     </div>
     <button class="btn" id="btn-start">🎴 ABRIR PACOTINHOS</button>
   </div>
@@ -573,10 +578,17 @@ function teamOverall(){
 /* =====================================================================
    TELA: MENU
    ===================================================================== */
-document.querySelectorAll('.diff').forEach(b=>{
+document.querySelectorAll('.diff[data-d]').forEach(b=>{
   b.onclick = ()=>{
-    document.querySelectorAll('.diff').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.diff[data-d]').forEach(x=>x.classList.remove('on'));
     b.classList.add('on'); G.difficulty = b.dataset.d;
+  };
+});
+G.view = '3d';
+document.querySelectorAll('.diff[data-v]').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.diff[data-v]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); G.view = b.dataset.v;
   };
 });
 $('btn-start').onclick = ()=>{
@@ -1754,7 +1766,8 @@ function kitLum(hex){
   const n=parseInt(hex.slice(1),16);
   return (0.299*((n>>16)&255) + 0.587*((n>>8)&255) + 0.114*(n&255))/255;
 }
-function drawPlayer(p){
+function drawPlayer(p, sx, sy, sc){
+  sx=sx??p.x; sy=sy??p.y; sc=sc??1;
   const oppKit = COUNTRIES[M.round.opp].c||'#e74c3c';
   const kit  = p.isGK? (p.team===0? '#ff8c42' : '#8e6bd6') : (p.team===0? '#ffd83d' : oppKit);
   const kit2 = p.isGK? '#20232b' : (p.team===0? '#1c6b35' : '#2c3e50'); // calção
@@ -1764,7 +1777,8 @@ function drawPlayer(p){
   const bob = moving? -Math.abs(Math.sin(p.stride||0))*1.1 : 0; // gingado da corrida
   const kicking = p.kickT>0;
   const lying = p.slideT>0 || (p.recoverT>0 && p.wasSlide) || p.diveT>0;
-  cx.save(); cx.translate(p.x, p.y);
+  cx.save(); cx.translate(sx, sy);
+  cx.scale(sc, sc);
   /* sombra */
   cx.beginPath(); cx.ellipse(0, 19, lying?17:12, 4.2, 0, 0, 7);
   cx.fillStyle='rgba(0,0,0,.3)'; cx.fill();
@@ -1859,7 +1873,184 @@ function drawNet(x0){
   cx.fillRect(x0, H/2-GOAL_H-3, 10, 3);
   cx.fillRect(x0, H/2+GOAL_H, 10, 3);
 }
-function draw(){
+function draw(){ if((G.view||'3d')==='3d') draw3D(); else draw2D(); }
+
+/* =====================================================================
+   VISÃO 3D — câmera de transmissão em perspectiva (estilo PlayStation)
+   ===================================================================== */
+const CAM3 = {tilt:0.55, dist:700, h:420, fl:1100};
+function proj3(wx, wy, wz){
+  const px = wx - (M.camX??W/2);
+  const py = wy - ((M.cam3Y??H/2) + CAM3.dist);
+  const pz = (wz||0) - CAM3.h;
+  const cT = Math.cos(CAM3.tilt), sT = Math.sin(CAM3.tilt);
+  const depth = -py*cT - pz*sT;
+  const yc = -py*sT + pz*cT;
+  const s = CAM3.fl/Math.max(80, depth);
+  return {x: W/2 + px*s, y: H*0.46 - yc*s, s};
+}
+function line3(x1,y1,x2,y2,z1,z2){
+  const a=proj3(x1,y1,z1||0), b=proj3(x2,y2,z2||0);
+  cx.beginPath(); cx.moveTo(a.x,a.y); cx.lineTo(b.x,b.y); cx.stroke();
+}
+function poly3(pts, fill){
+  cx.beginPath();
+  pts.forEach((p,i)=>{ const q=proj3(p[0],p[1],0); i? cx.lineTo(q.x,q.y):cx.moveTo(q.x,q.y); });
+  cx.closePath(); cx.fillStyle=fill; cx.fill();
+}
+function circle3(cw, ch, r, a0, a1){
+  a0=a0??0; a1=a1??Math.PI*2;
+  cx.beginPath();
+  const n=26;
+  for(let i=0;i<=n;i++){
+    const a=a0+(a1-a0)*i/n;
+    const q=proj3(cw+Math.cos(a)*r, ch+Math.sin(a)*r, 0);
+    i? cx.lineTo(q.x,q.y):cx.moveTo(q.x,q.y);
+  }
+  cx.stroke();
+}
+function goal3(side){
+  const gx = side? W-10 : 10;
+  const bx = side? W-2 : 2;
+  /* rede */
+  cx.strokeStyle='rgba(255,255,255,.3)'; cx.lineWidth=1;
+  for(let i=0;i<=6;i++){
+    const y = H/2-GOAL_H + (GOAL_H*2)*i/6;
+    line3(bx,y,bx,y,0,55);
+    line3(gx,y,bx,y,62,55);
+  }
+  for(let z=0; z<=55; z+=11){ line3(bx,H/2-GOAL_H,bx,H/2+GOAL_H,z,z); }
+  /* traves */
+  cx.strokeStyle='rgba(255,255,255,.95)'; cx.lineWidth=3.5;
+  line3(gx,H/2-GOAL_H,gx,H/2-GOAL_H,0,62);
+  line3(gx,H/2+GOAL_H,gx,H/2+GOAL_H,0,62);
+  line3(gx,H/2-GOAL_H,gx,H/2+GOAL_H,62,62);
+}
+function drawRadar(){
+  const rw=168, rh=106, rx=W/2-rw/2, ry=H-rh-10;
+  cx.globalAlpha=0.85;
+  cx.fillStyle='rgba(8,14,24,.8)'; cx.fillRect(rx,ry,rw,rh);
+  cx.strokeStyle='rgba(255,255,255,.45)'; cx.lineWidth=1; cx.strokeRect(rx,ry,rw,rh);
+  cx.beginPath(); cx.moveTo(rx+rw/2,ry); cx.lineTo(rx+rw/2,ry+rh); cx.stroke();
+  for(const p of M.players){
+    cx.fillStyle = p.isGK? '#b28dff' : p.team===0? '#ffd83d' : '#ff6b6b';
+    cx.fillRect(rx+p.x/W*rw-1.5, ry+p.y/H*rh-1.5, 3, 3);
+  }
+  cx.fillStyle='#fff';
+  cx.beginPath(); cx.arc(rx+M.ball.x/W*rw, ry+M.ball.y/H*rh, 2.5, 0, 7); cx.fill();
+  cx.globalAlpha=1;
+}
+function draw3D(){
+  const b=M.ball;
+  /* câmera segue a bola */
+  const tx = clamp(b.x, 290, W-290);
+  M.camX = (M.camX??W/2) + (tx-(M.camX??W/2))*0.06;
+  const ty = H/2 + (b.y-H/2)*0.3;
+  M.cam3Y = (M.cam3Y??H/2) + (ty-(M.cam3Y??H/2))*0.06;
+  /* estádio ao fundo */
+  cx.clearRect(0,0,W,H);
+  const g=cx.createLinearGradient(0,0,0,H*0.4);
+  g.addColorStop(0,'#04060c'); g.addColorStop(1,'#0e1930');
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  /* torcida (mosaico fixo no alto) */
+  if(!M.crowd){
+    M.crowd=[];
+    for(let i=0;i<540;i++){
+      const h=Math.floor(Math.random()*360);
+      M.crowd.push([Math.random()*W, 34+Math.random()*92, `hsl(${h} 35% ${30+Math.random()*32}%)`]);
+    }
+  }
+  for(const c of M.crowd){ cx.fillStyle=c[2]; cx.fillRect(c[0], c[1], 2.6, 2.6); }
+  cx.fillStyle='rgba(4,6,12,.35)'; cx.fillRect(0,30,W,100);
+  /* gramado externo + faixas */
+  poly3([[-190,-170],[W+190,-170],[W+190,H+130],[-190,H+130]], '#123f22');
+  for(let i=0;i<8;i++){
+    poly3([[i*W/8,0],[(i+1)*W/8,0],[(i+1)*W/8,H],[i*W/8,H]], i%2? '#1f8a41':'#1c7a3a');
+  }
+  /* linhas do campo */
+  cx.strokeStyle='rgba(255,255,255,.85)'; cx.lineWidth=2;
+  line3(10,10,W-10,10); line3(W-10,10,W-10,H-10); line3(W-10,H-10,10,H-10); line3(10,H-10,10,10);
+  line3(W/2,10,W/2,H-10);
+  circle3(W/2,H/2,70);
+  /* áreas */
+  line3(10,H/2-150,140,H/2-150); line3(140,H/2-150,140,H/2+150); line3(140,H/2+150,10,H/2+150);
+  line3(W-10,H/2-150,W-140,H/2-150); line3(W-140,H/2-150,W-140,H/2+150); line3(W-140,H/2+150,W-10,H/2+150);
+  line3(10,H/2-70,65,H/2-70); line3(65,H/2-70,65,H/2+70); line3(65,H/2+70,10,H/2+70);
+  line3(W-10,H/2-70,W-65,H/2-70); line3(W-65,H/2-70,W-65,H/2+70); line3(W-65,H/2+70,W-10,H/2+70);
+  /* meia-luas e marcas */
+  circle3(120,H/2,68,-1.27,1.27);
+  circle3(W-120,H/2,68,Math.PI-1.27,Math.PI+1.27);
+  for(const [mx,my] of [[120,H/2],[W-120,H/2],[W/2,H/2]]){
+    const q=proj3(mx,my,0);
+    cx.fillStyle='rgba(255,255,255,.85)';
+    cx.beginPath(); cx.arc(q.x,q.y,2.2*q.s,0,7); cx.fill();
+  }
+  /* gol de cima (longe) primeiro, entidades, depois gol de baixo? gols ficam nas laterais x — desenha ambos antes dos jogadores próximos */
+  goal3(0); goal3(1);
+  /* entidades ordenadas por profundidade (y menor = mais longe) */
+  const ents = M.players.map(p=>({y:p.y, p}));
+  const ballZ = b.aerialT>0? 55*clamp(b.aerialT/0.8,0,1) : 0;
+  ents.push({y:b.y, ball:true});
+  ents.sort((a,q)=>a.y-q.y);
+  for(const e of ents){
+    if(e.ball){
+      const qg=proj3(b.x,b.y,0);
+      cx.beginPath(); cx.ellipse(qg.x,qg.y,6*qg.s,2.4*qg.s,0,0,7);
+      cx.fillStyle='rgba(0,0,0,.3)'; cx.fill();
+      const q=proj3(b.x,b.y,ballZ+6);
+      cx.beginPath(); cx.arc(q.x,q.y,6.4*q.s,0,7);
+      cx.fillStyle='#ffffff'; cx.fill();
+      cx.lineWidth=1.2; cx.strokeStyle='#222'; cx.stroke();
+      continue;
+    }
+    const p=e.p;
+    const q=proj3(p.x,p.y,0);
+    const psc=q.s*0.92;
+    if(p===M.controlled){
+      cx.beginPath(); cx.ellipse(q.x, q.y+19*psc, 15*psc, 5*psc, 0, 0, 7);
+      cx.strokeStyle='rgba(53,224,141,.9)'; cx.lineWidth=2.5; cx.stroke();
+    }
+    drawPlayer(p, q.x, q.y, psc);
+  }
+  /* indicador + nomes */
+  const cpp=M.controlled;
+  if(cpp){
+    const q=proj3(cpp.x,cpp.y,0), psc=q.s*0.92;
+    cx.beginPath();
+    cx.moveTo(q.x-6*psc, q.y-42*psc); cx.lineTo(q.x+6*psc, q.y-42*psc); cx.lineTo(q.x, q.y-34*psc);
+    cx.closePath(); cx.fillStyle='#35e08d'; cx.fill();
+    cx.strokeStyle='rgba(0,0,0,.4)'; cx.lineWidth=1; cx.stroke();
+    cx.font=`bold ${Math.round(11*psc)}px sans-serif`; cx.textAlign='center';
+    cx.fillStyle='rgba(255,255,255,.95)';
+    cx.fillText(cpp.name, q.x, q.y-46*psc);
+  }
+  const bo=b.owner;
+  if(bo && bo!==cpp && !bo.isGK){
+    const q=proj3(bo.x,bo.y,0), psc=q.s*0.92;
+    cx.font=`bold ${Math.round(10*psc)}px sans-serif`; cx.textAlign='center';
+    cx.fillStyle = bo.team===0? 'rgba(255,255,255,.85)' : 'rgba(255,190,190,.85)';
+    cx.fillText(bo.name, q.x, q.y-34*psc);
+  }
+  /* barra de força */
+  if(M.charging && b.owner===M.controlled && M.controlled){
+    const p=M.controlled, c=M.charge||0;
+    const q=proj3(p.x,p.y,0), psc=q.s*0.92;
+    cx.fillStyle='rgba(0,0,0,.55)'; cx.fillRect(q.x-20*psc, q.y-60*psc, 40*psc, 7*psc);
+    cx.fillStyle = c>0.85? '#e74c3c' : c>0.55? '#f4a712' : '#35e08d';
+    cx.fillRect(q.x-18*psc, q.y-58.5*psc, 36*psc*c, 4*psc);
+  }
+  drawRadar();
+  /* setas de ataque (fixas na tela) */
+  cx.font='bold 13px sans-serif'; cx.fillStyle='rgba(255,255,255,.55)'; cx.textAlign='center';
+  if(M.att[0]>0){
+    cx.fillText('SEU GOL ⬅', 80, 152);
+    cx.fillText('➡ ATAQUE AQUI', W-95, 152);
+  } else {
+    cx.fillText('⬅ ATAQUE AQUI', 95, 152);
+    cx.fillText('➡ SEU GOL', W-80, 152);
+  }
+}
+function draw2D(){
   cx.clearRect(0,0,W,H);
   /* câmera de transmissão: segue a bola com zoom suave */
   const Z=1.28;
