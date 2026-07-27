@@ -179,6 +179,18 @@
   /* pause */
   #pause-box{position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
     background:rgba(4,10,22,.85); border-radius:12px; gap:14px}
+  /* banner de gol (terço inferior, estilo transmissão) */
+  #goal-banner{
+    position:absolute; left:0; bottom:15%; z-index:6; pointer-events:none;
+    transform:translateX(-110%) skewX(-8deg); transform-origin:left bottom;
+    background:linear-gradient(90deg,#c9f31d,#9fd10c); color:#0a0d12;
+    font-weight:900; font-style:italic; text-transform:uppercase; letter-spacing:1px;
+    font-size:clamp(13px,2.6vw,19px); padding:10px 28px 10px 18px; border-radius:0 4px 4px 0;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    transition:transform .45s cubic-bezier(.2,.9,.3,1.15);
+  }
+  #goal-banner.show{ transform:translateX(0) skewX(-8deg); }
+  #goal-banner.opp{ background:linear-gradient(90deg,#e74c3c,#b03024); color:#fff; }
   /* tela de VS pré-jogo */
   #vs-box{position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:34px;
     background:linear-gradient(120deg, rgba(6,10,20,.96) 40%, rgba(20,30,55,.96)); border-radius:12px}
@@ -403,6 +415,7 @@
       <button class="btn sec small" id="btn-stats-pause">📊 Estatísticas</button>
       <button class="btn sec small" id="btn-quit">🚪 Sair da partida</button>
     </div>
+    <div id="goal-banner"></div>
     <div id="vs-box">
       <div class="vs-side"><div class="vs-shield">🟡</div><div class="vs-name">MEU TIME</div></div>
       <div class="vs-mid">VS<br><span id="vs-phase"></span></div>
@@ -437,11 +450,11 @@
 
 /* ---------- Banco de figurinhas ---------- */
 const COUNTRIES = {
-  BRA:{n:'Brasil',f:'🇧🇷',c:'#ffd83d'},      ARG:{n:'Argentina',f:'🇦🇷',c:'#8fd3f4'},
+  BRA:{n:'Brasil',f:'🇧🇷',c:'#ffd83d'},      ARG:{n:'Argentina',f:'🇦🇷',c:'#8fd3f4',stripe:'#ffffff'},
   FRA:{n:'França',f:'🇫🇷',c:'#2b4bd6'},      ING:{n:'Inglaterra',f:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',c:'#f0f0f0'},
   POR:{n:'Portugal',f:'🇵🇹',c:'#c0392b'},    ESP:{n:'Espanha',f:'🇪🇸',c:'#e03131'},
   ALE:{n:'Alemanha',f:'🇩🇪',c:'#f5f5f5'},    HOL:{n:'Holanda',f:'🇳🇱',c:'#ff7b1c'},
-  BEL:{n:'Bélgica',f:'🇧🇪',c:'#d63031'},     CRO:{n:'Croácia',f:'🇭🇷',c:'#e5533d'},
+  BEL:{n:'Bélgica',f:'🇧🇪',c:'#d63031'},     CRO:{n:'Croácia',f:'🇭🇷',c:'#f2f2f2',stripe:'#e5533d'},
   URU:{n:'Uruguai',f:'🇺🇾',c:'#5dade2'},     COL:{n:'Colômbia',f:'🇨🇴',c:'#f7dc6f'},
   MEX:{n:'México',f:'🇲🇽',c:'#f4f6f7'},      EUA:{n:'Estados Unidos',f:'🇺🇸',c:'#ecf0f1'},
   JAP:{n:'Japão',f:'🇯🇵',c:'#3867d6'},       COR:{n:'Coreia do Sul',f:'🇰🇷',c:'#eb3b5a'},
@@ -1244,7 +1257,11 @@ function step(dt){
           p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.55; // voo do goleiro
           takeBall(p); p.holdT=0.9; break;
         }
+        /* goleiro batido no lance: não pode re-agarrar este chute */
+        b.gkBeaten = p;
+        p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.45;
       }
+      if(b.shot && p===b.gkBeaten) continue;
       const rr = (b.receiver===p)? 26 : 16;
       if(dist<rr && (sp<300 || b.receiver===p || dist<12)){
         if(b.shot && !p.isGK && sp>340){
@@ -1413,7 +1430,7 @@ function kickBall(p, dir, power){
   b.owner=null; b.receiver=null;
   const m=Math.hypot(dir.x,dir.y)||1;
   b.vx=dir.x/m*power; b.vy=dir.y/m*power;
-  b.noTouch=p; b.noTouchT=0.45; b.aerialT=0; b.lastTouch=p; b.saveTried=false;
+  b.noTouch=p; b.noTouchT=0.45; b.aerialT=0; b.lastTouch=p; b.saveTried=false; b.gkBeaten=null;
   p.kickT=0.22; // pose de chute
   thump();
 }
@@ -1519,8 +1536,19 @@ function aiUpdate(dt){
       /* carrega em direção ao gol do usuário */
       let tx = p.x + M.att[1]*200, ty = p.y + (H/2-p.y)*0.25;
       p.spMul = d.aiReact + 0.25;
-      /* pressionado? passa */
       const near = user.reduce((mn,u)=>Math.min(mn, Math.hypot(u.x-p.x,u.y-p.y)), 1e9);
+      /* sem pressão: troca de passes como um time de verdade */
+      if(near>130 && Math.random()<0.3*dt){
+        let bm=null, bsc=-1e9;
+        for(const q of ai){
+          if(q.isGK || q===p) continue;
+          const freeQ = user.reduce((mn,u)=>Math.min(mn, Math.hypot(u.x-q.x,u.y-q.y)), 1e9);
+          const sc = (q.x-p.x)*M.att[1] + freeQ*0.8;
+          if(sc>bsc){ bsc=sc; bm=q; }
+        }
+        if(bm){ passTo(p, bm); continue; }
+      }
+      /* pressionado? passa */
       if(near<50 && Math.random()<1.4*dt){
         const mates = ai.filter(q=>!q.isGK && q!==p && (q.x-p.x)*M.att[1] > -60);
         if(mates.length){ passTo(p, mates[Math.floor(Math.random()*mates.length)]); continue; }
@@ -1587,6 +1615,14 @@ function goal(team){
   const autor = (b.lastTouch && b.lastTouch.team===team)? b.lastTouch.name : null;
   M.goals.push({team, name:autor||'(contra)', min:currentMin()});
   M.msg(team===0? ('⚽ GOOOOOL!'+(autor? ' '+autor+'!':'')) : '😱 Gol do adversário...');
+  /* banner de transmissão no terço inferior */
+  const gb=$('goal-banner');
+  gb.textContent = team===0
+    ? `⚽ ${autor||'Gol'} ${currentMin()}' • Meu Time ${M.score[0]} x ${M.score[1]} ${M.oppName}`
+    : `⚽ ${COUNTRIES[M.round.opp].n} ${currentMin()}' • ${M.score[0]} x ${M.score[1]}`;
+  gb.classList.toggle('opp', team!==0);
+  gb.classList.add('show');
+  setTimeout(()=>gb.classList.remove('show'), 2600);
   M.state='kickoff'; M.stateT=2.2;
   /* tira a bola de trás da linha imediatamente */
   b.owner=null; b.receiver=null; b.shot=false;
@@ -1732,7 +1768,7 @@ function drawPlayer(p){
   /* sombra */
   cx.beginPath(); cx.ellipse(0, 19, lying?17:12, 4.2, 0, 0, 7);
   cx.fillStyle='rgba(0,0,0,.3)'; cx.fill();
-  cx.scale(1.55,1.55);
+  cx.scale(1.6,1.6);
   if(p.face<0) cx.scale(-1,1);
   if(lying) cx.rotate(p.diveT>0? (p.diveDir||1)*-1.15 : -1.25);
   else cx.rotate(Math.min(0.13, Math.hypot(p.vx,p.vy)*0.00045)); /* inclina o corpo na corrida */
@@ -1768,7 +1804,10 @@ function drawPlayer(p){
   cx.fillStyle='rgba(255,255,255,.14)'; cx.fillRect(-4.5,-0.5,9,1.2);
   /* camisa com sombreamento (luz vinda de cima) */
   cx.fillStyle=kit; cx.fillRect(-5,-9.5,10,9.5);
+  const stripe = !p.isGK && p.team===1 && COUNTRIES[M.round.opp].stripe;
+  if(stripe){ cx.fillStyle=stripe; cx.fillRect(-3.4,-9.5,1.9,9.5); cx.fillRect(1.5,-9.5,1.9,9.5); }
   cx.fillStyle='rgba(255,255,255,.16)'; cx.fillRect(-5,-9.5,10,2.2);
+  cx.fillStyle='rgba(255,255,255,.4)'; cx.fillRect(-1.6,-9.8,3.2,0.9); /* gola */
   cx.fillStyle='rgba(0,0,0,.16)'; cx.fillRect(-5,-4.2,10,4.2);
   /* friso do uniforme */
   cx.fillStyle = p.team===0? '#1c6b35' : 'rgba(255,255,255,.75)';
@@ -1823,7 +1862,7 @@ function drawNet(x0){
 function draw(){
   cx.clearRect(0,0,W,H);
   /* câmera de transmissão: segue a bola com zoom suave */
-  const Z=1.22;
+  const Z=1.28;
   const tcx = clamp(M.ball.x, W/(2*Z), W - W/(2*Z));
   const tcy = clamp(M.ball.y, H/(2*Z), H - H/(2*Z));
   M.camX += (tcx-(M.camX??W/2))*0.06; M.camY += (tcy-(M.camY??H/2))*0.06;
