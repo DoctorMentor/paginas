@@ -1205,7 +1205,7 @@ function step(dt){
       const dx=p.tx-p.x, dy=p.ty-p.y, m=Math.hypot(dx,dy);
       const sp = p.speed * (p.spMul||1);
       const dvx = m>4? dx/m*sp : 0, dvy = m>4? dy/m*sp : 0;
-      const k = Math.min(1, dt*6); /* inércia */
+      const k = Math.min(1, dt*(p.isGK? 10 : 6)); /* inércia (goleiro reage rápido) */
       p.vx += (dvx-p.vx)*k; p.vy += (dvy-p.vy)*k;
       p.x+=p.vx*dt; p.y+=p.vy*dt;
     }
@@ -1259,19 +1259,27 @@ function step(dt){
       if(b.aerialT>0 && p!==b.receiver) continue; /* bola alta: só o alvo do cruzamento alcança */
       if(b.safeT>0 && p.team!==b.safeTeam) continue; /* reposição protegida: só o time que repõe pega */
       const dist = Math.hypot(p.x-b.x, p.y-b.y);
-      if(p.isGK && b.shot && !b.saveTried && p.team!==(b.shotBy??-1) && dist<34){
-        /* defesa do goleiro: uma tentativa por chute */
-        b.saveTried = true;
-        const gkSkill = p.team===1? d.gk : clamp(0.55+(p.ovr-75)*0.02, 0.45, 0.9);
-        if(b.shotBy!==undefined) M.stats.onTarget[b.shotBy]++;
-        if(Math.random() < gkSkill){
-          if(location.hash==='#turbo') console.log('SAVE gk t'+p.team);
-          p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.55; // voo do goleiro
-          takeBall(p); p.holdT=0.9; break;
+      if(p.isGK && b.shot && !b.saveTried && p.team!==(b.shotBy??-1)){
+        /* a defesa acontece quando a bola chega na linha do gol (ou encosta no goleiro) */
+        const own = ownGoalX(p.team);
+        const lineX = own===0? 34 : W-34;
+        const nearLine = Math.abs(b.x-lineX)<44 && (own===0? b.vx<0 : b.vx>0);
+        if(dist<40 || nearLine){
+          b.saveTried = true;
+          const gkSkill = p.team===1? d.gk : clamp(0.55+(p.ovr-75)*0.02, 0.45, 0.9);
+          if(b.shotBy!==undefined) M.stats.onTarget[b.shotBy]++;
+          /* alcance: no meio é defesa segura, no canto é voo difícil */
+          const dy = Math.abs(p.y - b.y);
+          const reach = Math.max(0, 1 - Math.max(0, dy-16)/60);
+          if(Math.random() < gkSkill*(0.35 + 0.65*reach)){
+            if(location.hash==='#turbo') console.log('SAVE gk t'+p.team+' dy'+Math.round(dy));
+            p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.55; // voo do goleiro
+            takeBall(p); p.holdT=0.9; break;
+          }
+          /* goleiro batido no lance: não pode re-agarrar este chute */
+          b.gkBeaten = p;
+          p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.45;
         }
-        /* goleiro batido no lance: não pode re-agarrar este chute */
-        b.gkBeaten = p;
-        p.diveDir = (b.y>=p.y)? 1 : -1; p.diveT=0.45;
       }
       if(b.shot && p===b.gkBeaten) continue;
       const rr = (b.receiver===p)? 26 : 16;
@@ -1607,12 +1615,24 @@ function gkLogic(p, dt){
   const own = ownGoalX(p.team);
   const gx = own===0? 34 : W-34;
   const onMySide = own===0? b.x<W/2 : b.x>W/2;
-  let ty = H/2;
-  if(onMySide) ty = clamp(b.y, H/2-GOAL_H+8, H/2+GOAL_H-8);
-  /* sai um pouco se a bola estiver muito perto e livre */
-  let tx = gx;
-  if(!b.owner && onMySide && Math.abs(b.x-gx)<110 && Math.abs(b.y-H/2)<GOAL_H+40) { tx = clamp(b.x, Math.min(gx,110), Math.max(gx, W-110)); ty = b.y; }
-  p.spMul = 1.05;
+  let tx = gx, ty = H/2;
+  const towardMe = own===0? b.vx<-40 : b.vx>40;
+  if(b.shot && !b.owner && towardMe){
+    /* antecipa o ponto onde a bola vai cruzar a linha e mergulha para lá */
+    const t = (gx - b.x)/(b.vx||1);
+    if(t>0 && t<2){
+      const crossY = b.y + b.vy*t;
+      ty = clamp(crossY, H/2-GOAL_H-6, H/2+GOAL_H+6);
+    } else ty = clamp(b.y, H/2-GOAL_H, H/2+GOAL_H);
+    p.spMul = 1.55;
+  } else if(onMySide){
+    ty = clamp(b.y, H/2-GOAL_H+8, H/2+GOAL_H-8);
+    /* sai um pouco se a bola estiver muito perto e livre */
+    if(!b.owner && Math.abs(b.x-gx)<110 && Math.abs(b.y-H/2)<GOAL_H+40){
+      tx = clamp(b.x, Math.min(gx,110), Math.max(gx, W-110)); ty = b.y;
+    }
+    p.spMul = 1.1;
+  } else p.spMul = 1.0;
   p.tx=tx; p.ty=ty;
 }
 
