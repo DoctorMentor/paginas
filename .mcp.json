@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ryzeapi": {
+      "type": "http",
+      "url": "https://ryzeapi.cloud/mcp",
+      "headers": {
+        "token": "${RYZE_API_TOKEN}"
+      }
+    }
+  }
+}
